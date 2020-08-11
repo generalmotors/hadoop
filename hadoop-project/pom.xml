@@ -98,7 +98,7 @@
     <zookeeper.version>3.5.6</zookeeper.version>
     <curator.version>4.2.0</curator.version>
     <findbugs.version>3.0.5</findbugs.version>
-    <spotbugs.version>3.1.0-RC1</spotbugs.version>
+    <spotbugs.version>4.0.6</spotbugs.version>
     <dnsjava.version>2.1.7</dnsjava.version>
 
     <guava.version>27.0-jre</guava.version>
@@ -152,6 +152,7 @@
 
     <!-- define the Java language version used by the compiler -->
     <javac.version>1.8</javac.version>
+    <javadoc.skip.jdk11>false</javadoc.skip.jdk11>
 
     <!-- The java version enforced by the maven enforcer -->
     <!-- more complex patterns can be used here, such as
@@ -2399,6 +2400,8 @@
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-javadoc-plugin</artifactId>
             <configuration>
+              <skip>${javadoc.skip.jdk11}</skip>
+              <detectJavaApiLink>false</detectJavaApiLink>
               <additionalOptions>
                 <!-- TODO: remove -html4 option to generate html5 docs when we stop supporting JDK8 -->
                 <additionalOption>-html4</additionalOption>

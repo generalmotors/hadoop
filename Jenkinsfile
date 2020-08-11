@@ -23,7 +23,7 @@ pipeline {
 
     options {
         buildDiscarder(logRotator(numToKeepStr: '5'))
-        timeout (time: 5, unit: 'HOURS')
+        timeout (time: 20, unit: 'HOURS')
         timestamps()
         checkoutToSubdirectory('src')
     }
@@ -35,7 +35,7 @@ pipeline {
         DOCKERFILE = "${SOURCEDIR}/dev-support/docker/Dockerfile"
         YETUS='yetus'
         // Branch or tag name.  Yetus release tags are 'rel/X.Y.Z'
-        YETUS_VERSION='rel/0.12.0'
+        YETUS_VERSION='master'
     }
 
     parameters {
@@ -144,6 +144,7 @@ pipeline {
                         # Dockerfile since we don't want to use the auto-pulled version.
                         YETUS_ARGS+=("--docker")
                         YETUS_ARGS+=("--dockerfile=${DOCKERFILE}")
+                        YETUS_ARGS+=("--mvn-custom-repos")
 
                         # effectively treat dev-suport as a custom maven module
                         YETUS_ARGS+=("--skip-dirs=dev-support")
@@ -158,6 +159,9 @@ pipeline {
                         YETUS_ARGS+=("--java-home=/usr/lib/jvm/java-8-openjdk-amd64")
                         YETUS_ARGS+=("--multijdkdirs=/usr/lib/jvm/java-11-openjdk-amd64")
                         YETUS_ARGS+=("--multijdktests=compile")
+
+                        # custom javadoc goals
+                        YETUS_ARGS+=("--mvn-javadoc-goals=process-sources,javadoc:javadoc-no-fork")
 
                         "${TESTPATCHBIN}" "${YETUS_ARGS[@]}"
                         '''

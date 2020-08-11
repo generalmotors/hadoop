@@ -392,12 +392,13 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
     // during RM recovery
     synchronized (this.context) {
       List<NMContainerStatus> containerReports = getNMContainerStatuses();
+      NodeStatus nodeStatus = getNodeStatus(0);
       RegisterNodeManagerRequest request =
           RegisterNodeManagerRequest.newInstance(nodeId, httpPort, totalResource,
               nodeManagerVersionId, containerReports, getRunningApplications(),
-              nodeLabels, physicalResource, nodeAttributes);
+              nodeLabels, physicalResource, nodeAttributes, nodeStatus);
 
-      if (containerReports != null) {
+      if (containerReports != null && !containerReports.isEmpty()) {
         LOG.info("Registering with RM using containers :" + containerReports);
       }
       if (logAggregationEnabled) {
@@ -776,8 +777,13 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
       while (i.hasNext()) {
         Entry<ContainerId, Long> mapEntry = i.next();
         ContainerId cid = mapEntry.getKey();
-        if (mapEntry.getValue() < currentTime) {
-          if (!context.getContainers().containsKey(cid)) {
+        if (mapEntry.getValue() >= currentTime) {
+          break;
+        }
+        if (!context.getContainers().containsKey(cid)) {
+          ApplicationId appId =
+              cid.getApplicationAttemptId().getApplicationId();
+          if (isApplicationStopped(appId)) {
             i.remove();
             try {
               context.getNMStateStore().removeContainer(cid);
@@ -785,8 +791,6 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
               LOG.error("Unable to remove container " + cid + " in store", e);
             }
           }
-        } else {
-          break;
         }
       }
     }
@@ -1403,6 +1407,9 @@ public class NodeStatusUpdaterImpl extends AbstractService implements
           if (newResource != null) {
             updateNMResource(newResource);
             LOG.debug("Node's resource is updated to {}", newResource);
+            if (!totalResource.equals(newResource)) {
+              LOG.info("Node's resource is updated to {}", newResource);
+            }
           }
           if (timelineServiceV2Enabled) {
             updateTimelineCollectorData(response);

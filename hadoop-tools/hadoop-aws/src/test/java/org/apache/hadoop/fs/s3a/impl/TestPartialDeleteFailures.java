@@ -32,8 +32,11 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
+import com.amazonaws.services.s3.model.DeleteObjectsResult;
 import com.amazonaws.services.s3.model.MultiObjectDeleteException;
+import com.amazonaws.services.s3.transfer.model.CopyResult;
 import com.google.common.collect.Lists;
 import org.assertj.core.api.Assertions;
 import org.junit.Before;
@@ -42,14 +45,21 @@ import org.junit.Test;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.fs.s3a.Constants;
 import org.apache.hadoop.fs.s3a.Invoker;
 import org.apache.hadoop.fs.s3a.S3AFileStatus;
 import org.apache.hadoop.fs.s3a.S3AInputPolicy;
 import org.apache.hadoop.fs.s3a.S3AInstrumentation;
+import org.apache.hadoop.fs.s3a.S3ALocatedFileStatus;
+import org.apache.hadoop.fs.s3a.S3AReadOpContext;
 import org.apache.hadoop.fs.s3a.S3AStorageStatistics;
+import org.apache.hadoop.fs.s3a.S3ListRequest;
+import org.apache.hadoop.fs.s3a.S3ListResult;
+import org.apache.hadoop.fs.s3a.S3ObjectAttributes;
 import org.apache.hadoop.fs.s3a.s3guard.BulkOperationState;
 import org.apache.hadoop.fs.s3a.s3guard.DirListingMetadata;
 import org.apache.hadoop.fs.s3a.s3guard.ITtlTimeProvider;
@@ -203,29 +213,167 @@ public class TestPartialDeleteFailures {
       OperationTrackingStore store) throws URISyntaxException, IOException {
     URI name = new URI("s3a://bucket");
     Configuration conf = new Configuration();
-    return new StoreContext(
-        name,
-        "bucket",
-        conf,
-        "alice",
-        UserGroupInformation.getCurrentUser(),
-        BlockingThreadPoolExecutorService.newInstance(
+    return new StoreContextBuilder().setFsURI(name)
+        .setBucket("bucket")
+        .setConfiguration(conf)
+        .setUsername("alice")
+        .setOwner(UserGroupInformation.getCurrentUser())
+        .setExecutor(BlockingThreadPoolExecutorService.newInstance(
             4,
             4,
             10, TimeUnit.SECONDS,
-            "s3a-transfer-shared"),
-        Constants.DEFAULT_EXECUTOR_CAPACITY,
-        new Invoker(RetryPolicies.TRY_ONCE_THEN_FAIL, Invoker.LOG_EVENT),
-        new S3AInstrumentation(name),
-        new S3AStorageStatistics(),
-        S3AInputPolicy.Normal,
-        ChangeDetectionPolicy.createPolicy(ChangeDetectionPolicy.Mode.None,
-            ChangeDetectionPolicy.Source.ETag, false),
-        multiDelete,
-        store,
-        false,
-        CONTEXT_ACCESSORS,
-        new S3Guard.TtlTimeProvider(conf));
+            "s3a-transfer-shared"))
+        .setExecutorCapacity(Constants.DEFAULT_EXECUTOR_CAPACITY)
+        .setInvoker(
+            new Invoker(RetryPolicies.TRY_ONCE_THEN_FAIL, Invoker.LOG_EVENT))
+        .setInstrumentation(new S3AInstrumentation(name))
+        .setStorageStatistics(new S3AStorageStatistics())
+        .setInputPolicy(S3AInputPolicy.Normal)
+        .setChangeDetectionPolicy(
+            ChangeDetectionPolicy.createPolicy(ChangeDetectionPolicy.Mode.None,
+                ChangeDetectionPolicy.Source.ETag, false))
+        .setMultiObjectDeleteEnabled(multiDelete)
+        .setMetadataStore(store)
+        .setUseListV1(false)
+        .setContextAccessors(CONTEXT_ACCESSORS)
+        .setTimeProvider(new S3Guard.TtlTimeProvider(conf))
+        .build();
+  }
+
+  private static class MinimalListingOperationCallbacks
+          implements ListingOperationCallbacks {
+    @Override
+    public S3ListResult listObjects(S3ListRequest request)
+            throws IOException {
+      return null;
+    }
+
+    @Override
+    public S3ListResult continueListObjects(
+            S3ListRequest request,
+            S3ListResult prevResult)
+            throws IOException {
+      return null;
+    }
+
+    @Override
+    public S3ALocatedFileStatus toLocatedFileStatus(
+            S3AFileStatus status) throws IOException {
+      return null;
+    }
+
+    @Override
+    public S3ListRequest createListObjectsRequest(
+            String key,
+            String delimiter) {
+      return null;
+    }
+
+    @Override
+    public long getDefaultBlockSize(Path path) {
+      return 0;
+    }
+
+    @Override
+    public int getMaxKeys() {
+      return 0;
+    }
+
+    @Override
+    public ITtlTimeProvider getUpdatedTtlTimeProvider() {
+      return null;
+    }
+
+    @Override
+    public boolean allowAuthoritative(Path p) {
+      return false;
+    }
+  }
+  private static class MinimalOperationCallbacks
+          implements OperationCallbacks {
+    @Override
+    public S3ObjectAttributes createObjectAttributes(
+            Path path,
+            String eTag,
+            String versionId,
+            long len) {
+      return null;
+    }
+
+    @Override
+    public S3ObjectAttributes createObjectAttributes(
+            S3AFileStatus fileStatus) {
+      return null;
+    }
+
+    @Override
+    public S3AReadOpContext createReadContext(
+            FileStatus fileStatus) {
+      return null;
+    }
+
+    @Override
+    public void finishRename(
+            Path sourceRenamed,
+            Path destCreated)
+            throws IOException {
+
+    }
+
+    @Override
+    public void deleteObjectAtPath(
+            Path path,
+            String key,
+            boolean isFile,
+            BulkOperationState operationState)
+            throws IOException {
+
+    }
+
+    @Override
+    public RemoteIterator<S3ALocatedFileStatus> listFilesAndEmptyDirectories(
+            Path path,
+            S3AFileStatus status,
+            boolean collectTombstones,
+            boolean includeSelf)
+            throws IOException {
+      return null;
+    }
+
+    @Override
+    public CopyResult copyFile(
+            String srcKey,
+            String destKey,
+            S3ObjectAttributes srcAttributes,
+            S3AReadOpContext readContext)
+            throws IOException {
+      return null;
+    }
+
+    @Override
+    public DeleteObjectsResult removeKeys(
+            List<DeleteObjectsRequest.KeyVersion> keysToDelete,
+            boolean deleteFakeDir,
+            List<Path> undeletedObjectsOnFailure,
+            BulkOperationState operationState,
+            boolean quiet)
+            throws MultiObjectDeleteException, AmazonClientException,
+            IOException {
+      return null;
+    }
+
+    @Override
+    public boolean allowAuthoritative(Path p) {
+      return false;
+    }
+
+    @Override
+    public RemoteIterator<S3AFileStatus> listObjects(
+            Path path,
+            String key)
+            throws IOException {
+      return null;
+    }
   }
 
   private static class MinimalContextAccessor implements ContextAccessors {
@@ -251,6 +399,10 @@ public class TestPartialDeleteFailures {
       return null;
     }
 
+    @Override
+    public Path makeQualified(final Path path) {
+      return path;
+    }
   }
   /**
    * MetadataStore which tracks what is deleted and added.
@@ -327,7 +479,8 @@ public class TestPartialDeleteFailures {
 
     @Override
     public void deletePaths(final Collection<Path> paths,
-        @Nullable final BulkOperationState operationState) throws IOException {
+        @Nullable final BulkOperationState operationState)
+            throws IOException {
       deleted.addAll(paths);
     }
 

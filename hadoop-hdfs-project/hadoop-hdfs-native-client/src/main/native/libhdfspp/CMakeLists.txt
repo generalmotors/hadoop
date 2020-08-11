@@ -28,6 +28,8 @@ project (libhdfspp)
 
 cmake_minimum_required(VERSION 2.8)
 
+find_package (Boost 1.72.0 REQUIRED)
+
 enable_testing()
 include (CTest)
 
@@ -220,7 +222,7 @@ include_directories(
 
 include_directories( SYSTEM
   ${PROJECT_BINARY_DIR}/lib/proto
-  third_party/asio-1.10.2/include
+  ${Boost_INCLUDE_DIRS}
   third_party/rapidxml-1.13
   third_party/gmock-1.7.0
   third_party/tr2
@@ -263,6 +265,7 @@ if (HADOOP_BUILD)
     ${CMAKE_THREAD_LIBS_INIT}
   )
   set_target_properties(hdfspp PROPERTIES SOVERSION ${LIBHDFSPP_VERSION})
+  hadoop_dual_output_directory(hdfspp ${OUT_DIR})
 else (HADOOP_BUILD)
   add_library(hdfspp_static STATIC ${EMPTY_FILE_CC} ${LIBHDFSPP_ALL_OBJECTS})
   target_link_libraries(hdfspp_static
